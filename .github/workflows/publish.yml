@@ -1,0 +1,60 @@
+name: Publish Articles
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "blogs/**/qiita.md"
+      - "blogs/**/zenn.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-articles-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Dependencies
+        run: python -m pip install --requirement requirements.txt
+
+      - name: Validate Articles
+        run: python scripts/publish_articles.py validate --repo-root "$GITHUB_WORKSPACE"
+
+      - name: Publish Changed Articles
+        env:
+          QIITA_ACCESS_TOKEN: ${{ secrets.QIITA_ACCESS_TOKEN }}
+          ZENN_COOKIE: ${{ secrets.ZENN_COOKIE }}
+        run: |
+          python scripts/publish_articles.py publish \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --base-sha "${{ github.event.before }}" \
+            --head-sha "${{ github.sha }}"
+
+      - name: Commit Synced IDs
+        run: |
+          if git diff --quiet -- blogs; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add blogs
+          git commit -m "chore: sync article publish ids [skip ci]"
+          git push
