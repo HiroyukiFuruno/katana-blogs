@@ -58,12 +58,17 @@ published: true
 # 本文
 ```
 
+## Prerequisites
+
+- **Zenn GitHub 連携**: [Zenn のダッシュボード](https://zenn.dev/dashboard/deploys) で「GitHub からのデプロイ」を有効にし、本リポジトリ (`HiroyukiFuruno/katana-blogs`) の `master` ブランチを連携する。これにより `articles/` 下の記事が push のたびに自動同期される
+
 ## GitHub Setup
 
 1. GitHub に `HiroyukiFuruno/katana-blogs` を作成する
-2. `infra/github/secrets.example.env` を `infra/github/secrets.env` にコピーして接続情報を入れる
-3. `python3 infra/github/sync_secrets.py` で GitHub repository secrets を同期する
-4. `master` ブランチに push する
+2. Zenn ダッシュボードで本リポジトリの GitHub 連携を有効にする
+3. `infra/github/secrets.example.env` を `infra/github/secrets.env` にコピーして Qiita の接続情報を入れる
+4. `python3 infra/github/sync_secrets.py` で GitHub repository secrets を同期する
+5. `master` ブランチに push する
 
 接続情報は [infra/github/README.md](./infra/github/README.md) を参照してください。
 
