@@ -1,18 +1,27 @@
 from __future__ import annotations
 
+import argparse
 import tempfile
 import unittest
 from pathlib import Path
 
 from scripts.publish_articles import (
+    ValidationError,
     build_qiita_payload,
-    build_zenn_payload,
+    list_all_documents,
+    list_publish_documents,
     load_document,
-    normalize_scheduled_publish_at,
+    select_documents,
 )
 
 
 class PublishArticlesTest(unittest.TestCase):
+    def write_markdown(self, root: Path, relative_path: str, contents: str) -> Path:
+        path = root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(contents, encoding="utf-8")
+        return path
+
     def test_load_document_reads_frontmatter_and_body(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "qiita.md"
@@ -69,40 +78,162 @@ body
             self.assertEqual(payload["tags"][1]["versions"], ["v1"])
             self.assertTrue(payload["tweet"])
 
-    def test_build_zenn_payload_normalizes_schedule(self) -> None:
+    def test_list_all_documents_includes_draft_and_publish(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            path = Path(tmp_dir) / "zenn.md"
-            path.write_text(
+            repo_root = Path(tmp_dir)
+            draft_path = self.write_markdown(
+                repo_root,
+                "blogs/draft/example/qiita.md",
                 """---
-title: Example
-emoji: "⚔️"
-type: tech
-topics:
+title: Draft Example
+tags:
   - python
-published: true
-slug:
-scheduled_publish_at: "2026-03-17 09:30"
-publication_id:
+private: false
+tweet: false
+slide: false
+item_id:
 ---
 
 body
 """,
-                encoding="utf-8",
+            )
+            publish_path = self.write_markdown(
+                repo_root,
+                "blogs/publish/example/qiita.md",
+                """---
+title: Publish Example
+tags:
+  - python
+private: false
+tweet: false
+slide: false
+item_id:
+---
+
+body
+""",
             )
 
-            payload = build_zenn_payload(load_document(path))
+            documents = list_all_documents(repo_root)
 
-            self.assertEqual(payload["article"]["articleType"], "tech")
-            self.assertEqual(
-                payload["article"]["scheduledPublishAt"],
-                "2026-03-17T09:30:00+09:00",
+            self.assertEqual(documents, [draft_path.resolve(), publish_path.resolve()])
+
+    def test_list_publish_documents_excludes_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            self.write_markdown(
+                repo_root,
+                "blogs/draft/example/qiita.md",
+                """---
+title: Draft Example
+tags:
+  - python
+private: false
+tweet: false
+slide: false
+item_id:
+---
+
+body
+""",
+            )
+            publish_path = self.write_markdown(
+                repo_root,
+                "blogs/publish/example/qiita.md",
+                """---
+title: Publish Example
+tags:
+  - python
+private: false
+tweet: false
+slide: false
+item_id:
+---
+
+body
+""",
             )
 
-    def test_normalize_scheduled_publish_at_accepts_iso8601(self) -> None:
-        self.assertEqual(
-            normalize_scheduled_publish_at("2026-03-17T00:30:00+09:00"),
-            "2026-03-17T00:30:00+09:00",
-        )
+            documents = list_publish_documents(repo_root)
+
+            self.assertEqual(documents, [publish_path.resolve()])
+
+    def test_select_documents_rejects_draft_path_for_publish(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            self.write_markdown(
+                repo_root,
+                "blogs/draft/example/qiita.md",
+                """---
+title: Draft Example
+tags:
+  - python
+private: false
+tweet: false
+slide: false
+item_id:
+---
+
+body
+""",
+            )
+
+            args = argparse.Namespace(
+                command="publish",
+                path=["blogs/draft/example/qiita.md"],
+                all=False,
+                base_sha=None,
+                head_sha="HEAD",
+                repo_root=repo_root,
+            )
+
+            with self.assertRaises(ValidationError):
+                select_documents(args)
+
+    def test_select_documents_validate_defaults_to_publish_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            publish_path = self.write_markdown(
+                repo_root,
+                "blogs/publish/example/qiita.md",
+                """---
+title: Publish Example
+tags:
+  - python
+private: false
+tweet: false
+slide: false
+item_id:
+---
+
+body
+""",
+            )
+            self.write_markdown(
+                repo_root,
+                "blogs/draft/example/qiita.md",
+                """---
+title: Draft Example
+tags:
+  - python
+private: false
+tweet: false
+slide: false
+item_id:
+---
+
+body
+""",
+            )
+
+            args = argparse.Namespace(
+                command="validate",
+                path=[],
+                all=False,
+                repo_root=repo_root,
+            )
+
+            self.assertEqual(select_documents(args), [publish_path.resolve()])
 
 
 if __name__ == "__main__":

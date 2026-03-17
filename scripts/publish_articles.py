@@ -21,8 +21,9 @@ FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n?(.*)\Z", re.DOTALL)
 NULL_GIT_SHA = "0" * 40
 PLATFORM_BY_FILENAME = {
     "qiita.md": "qiita",
-    "zenn.md": "zenn",
 }
+DRAFT_ARTICLES_DIR = Path("blogs/draft")
+PUBLISH_ARTICLES_DIR = Path("blogs/publish")
 
 
 class ValidationError(Exception):
@@ -39,7 +40,10 @@ class MarkdownDocument:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate and publish article markdown files from blogs/*/qiita.md and blogs/*/zenn.md."
+        description=(
+            "Validate article markdown files under blogs/draft and blogs/publish, "
+            "and publish only blogs/publish."
+        )
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -53,7 +57,7 @@ def parse_args() -> argparse.Namespace:
     publish_parser.add_argument(
         "--all",
         action="store_true",
-        help="Publish every supported markdown file under blogs/.",
+        help="Publish every supported markdown file under blogs/publish/.",
     )
     publish_parser.add_argument(
         "--base-sha",
@@ -86,7 +90,7 @@ def parse_args() -> argparse.Namespace:
     validate_parser.add_argument(
         "--all",
         action="store_true",
-        help="Validate every supported markdown file under blogs/.",
+        help="Validate every supported markdown file under blogs/draft/ and blogs/publish/.",
     )
     validate_parser.add_argument(
         "--repo-root",
@@ -151,28 +155,6 @@ def require_list(metadata: dict[str, Any], key: str) -> list[Any]:
     return value
 
 
-def normalize_scheduled_publish_at(raw: Any) -> str | None:
-    raw = normalize_scalar(raw)
-    if raw is None:
-        return None
-    if not isinstance(raw, str) or not raw.strip():
-        raise ValidationError("scheduled_publish_at must be a non-empty string when provided.")
-
-    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M"):
-        try:
-            dt = datetime.strptime(raw, fmt).replace(tzinfo=JST)
-            return dt.isoformat()
-        except ValueError:
-            continue
-
-    try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00")).isoformat()
-    except ValueError as exc:
-        raise ValidationError(
-            "scheduled_publish_at must use ISO8601, YYYY-MM-DD, or YYYY-MM-DD HH:MM."
-        ) from exc
-
-
 def parse_frontmatter(raw: str) -> tuple[dict[str, Any], str]:
     match = FRONTMATTER_RE.match(raw)
     if match is None:
@@ -210,6 +192,35 @@ def dump_document(document: MarkdownDocument) -> None:
     document.path.write_text(rendered, encoding="utf-8")
 
 
+def is_supported_markdown_path(path: Path) -> bool:
+    return path.name in PLATFORM_BY_FILENAME
+
+
+def list_documents_under(repo_root: Path, articles_dir: Path) -> list[Path]:
+    paths = list((repo_root / articles_dir).glob("**/qiita.md"))
+    return sorted({path.resolve() for path in paths})
+
+
+def list_publish_documents(repo_root: Path) -> list[Path]:
+    return list_documents_under(repo_root, PUBLISH_ARTICLES_DIR)
+
+
+def is_publish_document(repo_root: Path, path: Path) -> bool:
+    publish_root = (repo_root / PUBLISH_ARTICLES_DIR).resolve()
+    return path.resolve().is_relative_to(publish_root)
+
+
+def require_publish_documents(repo_root: Path, paths: list[Path]) -> list[Path]:
+    invalid_paths = [path for path in paths if not is_publish_document(repo_root, path)]
+    if invalid_paths:
+        joined = ", ".join(str(path) for path in invalid_paths)
+        raise ValidationError(
+            "publish command only supports markdown files under blogs/publish/: "
+            f"{joined}"
+        )
+    return paths
+
+
 def validate_qiita_document(document: MarkdownDocument) -> None:
     require_string(document.metadata, "title")
     tags = require_list(document.metadata, "tags")
@@ -238,35 +249,9 @@ def validate_qiita_document(document: MarkdownDocument) -> None:
     optional_string(document.metadata, "item_id")
 
 
-def validate_zenn_document(document: MarkdownDocument) -> None:
-    require_string(document.metadata, "title")
-    require_string(document.metadata, "emoji")
-
-    article_type = require_string(document.metadata, "type")
-    if article_type not in {"tech", "idea"}:
-        raise ValidationError("Zenn type must be either 'tech' or 'idea'.")
-
-    topics = require_list(document.metadata, "topics")
-    for topic in topics:
-        if not isinstance(normalize_scalar(topic), str) or not str(topic).strip():
-            raise ValidationError("Zenn topics must be non-empty strings.")
-
-    require_bool(document.metadata, "published")
-    optional_string(document.metadata, "slug")
-    normalize_scheduled_publish_at(document.metadata.get("scheduled_publish_at"))
-
-    publication_id = document.metadata.get("publication_id")
-    if publication_id is not None and not isinstance(publication_id, int):
-        raise ValidationError("publication_id must be an integer when provided.")
-
-
 def validate_document(document: MarkdownDocument) -> None:
     if document.platform == "qiita":
         validate_qiita_document(document)
-        return
-
-    if document.platform == "zenn":
-        validate_zenn_document(document)
         return
 
     raise ValidationError(f"Unsupported platform: {document.platform}")
@@ -304,24 +289,6 @@ def build_qiita_payload(document: MarkdownDocument) -> dict[str, Any]:
     }
 
 
-def build_zenn_payload(document: MarkdownDocument) -> dict[str, Any]:
-    metadata = document.metadata
-    return {
-        "article": {
-            "title": require_string(metadata, "title"),
-            "articleType": require_string(metadata, "type"),
-            "emoji": require_string(metadata, "emoji"),
-            "bodyMarkdown": document.body,
-            "scheduledPublishAt": normalize_scheduled_publish_at(
-                metadata.get("scheduled_publish_at")
-            ),
-            "published": require_bool(metadata, "published"),
-            "publicationId": metadata.get("publication_id"),
-        },
-        "topicNames": [str(normalize_scalar(topic)).strip() for topic in require_list(metadata, "topics")],
-    }
-
-
 def request_json(
     url: str,
     method: str,
@@ -344,22 +311,6 @@ def request_json(
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"{method} {url} returned HTTP {exc.code}: {body}") from exc
-
-
-def extract_slug(payload: Any) -> str | None:
-    if isinstance(payload, dict):
-        for key, value in payload.items():
-            if key == "slug" and isinstance(value, str):
-                return value
-            found = extract_slug(value)
-            if found:
-                return found
-    if isinstance(payload, list):
-        for item in payload:
-            found = extract_slug(item)
-            if found:
-                return found
-    return None
 
 
 def publish_qiita(document: MarkdownDocument, dry_run: bool) -> dict[str, Any]:
@@ -413,94 +364,17 @@ def publish_qiita(document: MarkdownDocument, dry_run: bool) -> dict[str, Any]:
     }
 
 
-def publish_zenn(document: MarkdownDocument, dry_run: bool) -> dict[str, Any]:
-    payload = build_zenn_payload(document)
-    original_slug = optional_string(document.metadata, "slug")
-    slug = original_slug
-    published = require_bool(document.metadata, "published")
-
-    if dry_run:
-        return {
-            "path": str(document.path),
-            "platform": document.platform,
-            "action": "update" if slug else "create",
-            "request": {
-                "api_base": "https://zenn.dev/api",
-                "create": None
-                if slug
-                else {"method": "POST", "path": "/articles", "json": {"topicNames": payload["topicNames"]}},
-                "update": {
-                    "method": "PUT",
-                    "path": f"/articles/{slug or '{returned_slug}'}",
-                    "json": payload,
-                },
-            },
-            "published": published,
-            "frontmatter_updated": False,
-        }
-
-    cookie = os.environ.get("ZENN_COOKIE")
-    if not cookie:
-        raise RuntimeError("Environment variable ZENN_COOKIE is not set.")
-
-    create_result = None
-    if not slug:
-        create_result = request_json(
-            url="https://zenn.dev/api/articles",
-            method="POST",
-            payload={"topicNames": payload["topicNames"]},
-            headers={
-                "Content-Type": "application/json",
-                "Cookie": cookie,
-                "User-Agent": "katana-blogs",
-            },
-        )
-        slug = extract_slug(create_result)
-        if not slug:
-            raise RuntimeError("Could not extract slug from Zenn create response.")
-
-    update_result = request_json(
-        url=f"https://zenn.dev/api/articles/{slug}",
-        method="PUT",
-        payload=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Cookie": cookie,
-            "User-Agent": "katana-blogs",
-        },
-    )
-
-    frontmatter_updated = False
-    if slug != document.metadata.get("slug"):
-        document.metadata["slug"] = slug
-        dump_document(document)
-        frontmatter_updated = True
-
-    return {
-        "path": str(document.path),
-        "platform": document.platform,
-        "action": "update" if original_slug else "create",
-        "slug": slug,
-        "published": published,
-        "create_result": create_result,
-        "update_result": update_result,
-        "frontmatter_updated": frontmatter_updated,
-    }
-
-
 def publish_document(document: MarkdownDocument, dry_run: bool) -> dict[str, Any]:
     validate_document(document)
     if document.platform == "qiita":
         return publish_qiita(document, dry_run=dry_run)
-    if document.platform == "zenn":
-        return publish_zenn(document, dry_run=dry_run)
     raise RuntimeError(f"Unsupported platform: {document.platform}")
 
 
 def list_all_documents(repo_root: Path) -> list[Path]:
-    paths = list(repo_root.glob("blogs/**/qiita.md"))
-    paths.extend(repo_root.glob("blogs/**/zenn.md"))
-    return sorted({path.resolve() for path in paths})
+    paths = list_documents_under(repo_root, DRAFT_ARTICLES_DIR)
+    paths.extend(list_publish_documents(repo_root))
+    return sorted(set(paths))
 
 
 def resolve_paths(repo_root: Path, raw_paths: list[str]) -> list[Path]:
@@ -515,9 +389,9 @@ def resolve_paths(repo_root: Path, raw_paths: list[str]) -> list[Path]:
 
 def changed_paths_from_git(repo_root: Path, base_sha: str | None, head_sha: str | None) -> list[Path]:
     if base_sha and base_sha != NULL_GIT_SHA:
-        cmd = ["git", "diff", "--name-only", base_sha, head_sha or "HEAD", "--", "blogs"]
+        cmd = ["git", "diff", "--name-only", base_sha, head_sha or "HEAD", "--", str(PUBLISH_ARTICLES_DIR)]
     else:
-        cmd = ["git", "ls-files", "blogs"]
+        cmd = ["git", "ls-files", str(PUBLISH_ARTICLES_DIR)]
 
     result = subprocess.run(
         cmd,
@@ -528,8 +402,9 @@ def changed_paths_from_git(repo_root: Path, base_sha: str | None, head_sha: str 
     )
     paths: list[Path] = []
     for line in result.stdout.splitlines():
-        if line.endswith("/qiita.md") or line.endswith("/zenn.md"):
-            candidate = (repo_root / line).resolve()
+        relative_path = Path(line)
+        if is_supported_markdown_path(relative_path):
+            candidate = (repo_root / relative_path).resolve()
             if candidate.exists():
                 paths.append(candidate)
     return sorted(set(paths))
@@ -538,9 +413,16 @@ def changed_paths_from_git(repo_root: Path, base_sha: str | None, head_sha: str 
 def select_documents(args: argparse.Namespace) -> list[Path]:
     repo_root = args.repo_root.resolve()
     if args.path:
-        return resolve_paths(repo_root, args.path)
-    if args.all or args.command == "validate":
-        return list_all_documents(repo_root)
+        resolved_paths = resolve_paths(repo_root, args.path)
+        if args.command == "publish":
+            return require_publish_documents(repo_root, resolved_paths)
+        return resolved_paths
+    if args.command == "validate":
+        if args.all:
+            return list_all_documents(repo_root)
+        return list_publish_documents(repo_root)
+    if args.all:
+        return list_publish_documents(repo_root)
     return changed_paths_from_git(repo_root, getattr(args, "base_sha", None), getattr(args, "head_sha", None))
 
 
