@@ -1,0 +1,27 @@
+{
+  "name": "my-blogs",
+  "version": "1.0.0",
+  "description": "`katana-blogs` は、Katana シリーズの思想を発信するための汎用記事投稿リポジトリです。Katana は、現実世界のあらゆる不便を切り開いていくためのプロジェクト群であり、このリポジトリではその実装や考え方を Qiita と Zenn に同時配信します。",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HiroyukiFuruno/katana-blogs.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/HiroyukiFuruno/katana-blogs/issues"
+  },
+  "homepage": "https://github.com/HiroyukiFuruno/katana-blogs#readme",
+  "dependencies": {
+    "zenn-cli": "^0.4.6"
+  }
+}
