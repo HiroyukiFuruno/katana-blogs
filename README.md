@@ -92,6 +92,24 @@ published: true
 
 ### 執筆と投稿の流れ (Qiita / Zenn 共通)
 
+```mermaid
+flowchart TD
+    A([📝 執筆]) -->|`blogs/draft/`| B[`qiita.md` / `zenn.md` を書く]
+    B -->|公開・更新したいとき| C[📁 `blogs/publish/` の下へ移動・保存]
+    C -->|`master` に push| D{⚙️ GitHub Actions}
+    
+    D -->|Qiita処理| E[📡 Qiita API で記事を投稿 / 更新]
+    E --> F[取得した `item_id` を元の `qiita.md` に追記]
+    
+    D -->|Zenn処理| G[📑 `zenn.md` を `articles/<slug>.md` にコピー]
+    
+    F --> H[📦 変更ファイル群をリポジトリへ自動コミット & Push]
+    G --> H
+    
+    H -.->|Zennのみ| I[🔗 Zenn 公式アプリの GitHub 連携が検知]
+    I -.-> J([🚀 Zenn サイト上へ自動反映])
+```
+
 1. `blogs/draft/<article>/` ディレクトリを作り、その下で `qiita.md` や `zenn.md` を執筆します。（Qiita/Zenn どちらか片方だけでもOKです）
 2. 投稿したくなったら、対象の `<article>` ディレクトリごと `blogs/publish/` の下へ移動またはコピーします。
 3. `master` に push します。
