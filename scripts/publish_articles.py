@@ -21,6 +21,7 @@ FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n?(.*)\Z", re.DOTALL)
 NULL_GIT_SHA = "0" * 40
 PLATFORM_BY_FILENAME = {
     "qiita.md": "qiita",
+    "zenn.md": "zenn",
 }
 DRAFT_ARTICLES_DIR = Path("blogs/draft")
 PUBLISH_ARTICLES_DIR = Path("blogs/publish")
@@ -198,6 +199,7 @@ def is_supported_markdown_path(path: Path) -> bool:
 
 def list_documents_under(repo_root: Path, articles_dir: Path) -> list[Path]:
     paths = list((repo_root / articles_dir).glob("**/qiita.md"))
+    paths.extend((repo_root / articles_dir).glob("**/zenn.md"))
     return sorted({path.resolve() for path in paths})
 
 
@@ -249,9 +251,26 @@ def validate_qiita_document(document: MarkdownDocument) -> None:
     optional_string(document.metadata, "item_id")
 
 
+def validate_zenn_document(document: MarkdownDocument) -> None:
+    require_string(document.metadata, "title")
+    require_string(document.metadata, "emoji")
+    require_string(document.metadata, "type")
+    topics = require_list(document.metadata, "topics")
+    for topic in topics:
+        if not isinstance(normalize_scalar(topic), str) or not str(topic).strip():
+            raise ValidationError("Zenn topics must be non-empty strings.")
+
+    require_bool(document.metadata, "published")
+    optional_string(document.metadata, "slug")
+
+
 def validate_document(document: MarkdownDocument) -> None:
     if document.platform == "qiita":
         validate_qiita_document(document)
+        return
+
+    if document.platform == "zenn":
+        validate_zenn_document(document)
         return
 
     raise ValidationError(f"Unsupported platform: {document.platform}")
@@ -364,10 +383,53 @@ def publish_qiita(document: MarkdownDocument, dry_run: bool) -> dict[str, Any]:
     }
 
 
-def publish_document(document: MarkdownDocument, dry_run: bool) -> dict[str, Any]:
+def publish_zenn(document: MarkdownDocument, dry_run: bool, repo_root: Path) -> dict[str, Any]:
+    original_slug = optional_string(document.metadata, "slug")
+    slug = original_slug or document.path.parent.name
+    published = require_bool(document.metadata, "published")
+
+    article_path = repo_root / "articles" / f"{slug}.md"
+
+    if dry_run:
+        return {
+            "path": str(document.path),
+            "platform": document.platform,
+            "action": "update" if original_slug else "create",
+            "slug": slug,
+            "published": published,
+            "dest_path": str(article_path.resolve()),
+            "frontmatter_updated": False,
+        }
+
+    # Ensure articles directory exists
+    article_path.parent.mkdir(parents=True, exist_ok=True)
+
+    frontmatter_updated = False
+    if slug != original_slug:
+        document.metadata["slug"] = slug
+        dump_document(document)
+        frontmatter_updated = True
+
+    # Copy the content (which might have updated frontmatter now)
+    article_path.write_text(document.path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    return {
+        "path": str(document.path),
+        "platform": document.platform,
+        "action": "update" if original_slug else "create",
+        "slug": slug,
+        "published": published,
+        "dest_path": str(article_path.resolve()),
+        "frontmatter_updated": frontmatter_updated,
+    }
+
+
+def publish_document(document: MarkdownDocument, dry_run: bool, repo_root: Path) -> dict[str, Any]:
     validate_document(document)
     if document.platform == "qiita":
         return publish_qiita(document, dry_run=dry_run)
+    if document.platform == "zenn":
+        return publish_zenn(document, dry_run=dry_run, repo_root=repo_root)
     raise RuntimeError(f"Unsupported platform: {document.platform}")
 
 
@@ -443,7 +505,7 @@ def run_publish(args: argparse.Namespace) -> int:
     summaries = []
     for path in paths:
         document = load_document(path)
-        summaries.append(publish_document(document, dry_run=args.dry_run))
+        summaries.append(publish_document(document, dry_run=args.dry_run, repo_root=args.repo_root))
 
     print(json.dumps(summaries, ensure_ascii=False, indent=2))
     return 0

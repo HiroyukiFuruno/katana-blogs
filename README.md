@@ -7,11 +7,9 @@
 ## Overview
 
 - Qiita の下書きは `blogs/draft/` で管理し、投稿対象だけを `blogs/publish/` に置きます。
-- Zenn は `zenn-cli` を使って `articles/` 配下で管理します（`published: false` で下書き）。
-- Qiita は Github Actions の workflow が `blogs/publish/**` の変更を検知して自動投稿します。
-- Zenn は `zenn-cli` による GitHub 連携を活用し、`master` への push ごとに自動同期されます。
-- 初回投稿で発行された Qiita の `item_id` は `blogs/publish/` 側の frontmatter に自動反映されます。
-- workflow が frontmatter の更新差分を commit / push するため、投稿済み状態をリポジトリ内で自己管理できます。
+- Zenn の下書きも同様に、同じ階層内で `zenn.md` として管理します。
+- Qiita の場合 Github Actions の workflow が API 連携し、初回 `item_id` を自動マージします。
+- Zenn の場合 workflow が自動的に `articles/` フォルダへコピー・同期し、Zenn公式の GitHub 連携により公開されます。
 
 ## Directory Layout
 
@@ -19,14 +17,16 @@
 .
 ├── .github/workflows/publish.yml
 ├── articles/
-│   └── <article-slug>.md
+│   └── (CI/CDによって生成されたマークダウンがコピーされます)
 ├── blogs/
 │   ├── draft/
 │   │   └── <article-slug>/
-│   │       └── qiita.md
+│   │       ├── qiita.md
+│   │       └── zenn.md
 │   └── publish/
 │       └── <article-slug>/
-│           └── qiita.md
+│           ├── qiita.md
+│           └── zenn.md
 ├── infra/github/
 │   ├── README.md
 │   ├── main.tf
@@ -39,7 +39,7 @@
 
 ## Article Format
 
-各記事は Qiita 用が `blogs/draft/<article>/qiita.md`（投稿時は `blogs/publish/`）に、Zenn 用が `articles/<article>.md` に配置します。メタデータは frontmatter で持ちます。
+各記事は Qiita 用が `blogs/{draft,publish}/<article>/qiita.md` に、Zenn 用が `blogs/{draft,publish}/<article>/zenn.md` に配置します。メタデータは frontmatter で持ちます。
 
 ### `blogs/publish/<article>/qiita.md`
 
@@ -58,7 +58,7 @@ item_id:
 # 本文
 ```
 
-### `articles/<article>.md`
+### `blogs/publish/<article>/zenn.md`
 
 ```md
 ---
@@ -90,21 +90,16 @@ published: true
 
 ## Operation Flow
 
-### Qiita
+### 執筆と投稿の流れ (Qiita / Zenn 共通)
 
-1. `blogs/draft/<article>/` に記事を書く
-2. 投稿したくなったら `blogs/publish/<article>/` に移動またはコピーする
-3. `master` に push する
-4. GitHub Actions が `blogs/publish/` 配下の変更だけを検知して投稿する
-5. 初回投稿で発行された `item_id` を workflow が Markdown に書き戻して commit / push する
-
-### Zenn
-
-1. `npx zenn new:article` または `articles/` 配下に手動でファイルを作成する
-2. `published: false` （下書き）としてプレビュー (`npx zenn preview`) しながら執筆する
-3. 投稿したくなったら `published: true` に変更する
-4. `master` に push する
-5. Zenn GitHub アプリが自動で同期・投稿する
+1. `blogs/draft/<article>/` ディレクトリを作り、その下で `qiita.md` や `zenn.md` を執筆します。
+2. 投稿したくなったら、対象ディレクトリごと `blogs/publish/<article>/` に移動またはコピーします。
+3. `master` に push します。
+4. GitHub Actions (CI) が `blogs/publish/` 配下の変更を検知して処理を開始します。
+   - **Qiita:** Qiita API で記事を投稿・更新し、発行された `item_id` を元のマークダウンに書き込みます。
+   - **Zenn:** `articles/<article>.md` へファイルを自動コピーします。
+5. workflow が自動で更新されたフロントマターや `articles/` のファイルを repository へ commit / push します。
+6. (Zennのみ) 自動コミットされた `articles/` の差分を Zenn 側の GitHub 連携が検知し、Zenn サイト側へ即座に同期されます。
 
 ## Local Commands
 
