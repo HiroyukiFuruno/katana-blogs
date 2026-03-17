@@ -6,8 +6,6 @@ topics: ["zenn", "github-actions"]
 published: false
 ---
 
-# サンプル記事
-
 このファイルは `katana-blogs` のサンプルです。
 
 ## 使い方
