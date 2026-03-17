@@ -29,9 +29,9 @@
 │           └── qiita.md
 ├── infra/github/
 │   ├── README.md
-│   ├── repository.env
-│   ├── secrets.example.env
-│   └── sync_secrets.py
+│   ├── main.tf
+│   ├── terraform.tfvars.example
+│   └── variables.tf
 ├── requirements.txt
 ├── scripts/publish_articles.py
 └── tests/test_publish_articles.py
@@ -78,12 +78,12 @@ published: true
 
 ## Initial Setup
 
-初回セットアップは `infra/github/` 配下の情報を埋めて、GitHub 側へ接続情報を登録します。
+初回セットアップは `infra/github/` 配下にて Terraform を使い、GitHub Repository Secrets（Qiita用トークンなど）を登録します。
 
 1. GitHub に `katana-blogs` を作成する
 2. Zenn ダッシュボードで本リポジトリの GitHub 連携を有効にする
-3. `infra/github/secrets.example.env` を `infra/github/secrets.env` にコピーし、`QIITA_ACCESS_TOKEN` を設定する
-4. `gh auth login` 済みの環境で `python3 infra/github/sync_secrets.py` を実行し、GitHub repository secrets に反映する
+3. `infra/github/terraform.tfvars.example` を `infra/github/terraform.tfvars` にコピーし、`qiita_access_token` などを設定する
+4. `infra/github` ディレクトリ内で `terraform init`, `terraform apply` を実行し、GitHub repository secrets に反映する
 5. `master` ブランチへ `github-actions[bot]` が push できるようにしておく
 
 接続情報の詳細は [infra/github/README.md](infra/github/README.md) を参照してください。
@@ -131,12 +131,6 @@ Qiita (publish 対象だけ) を dry-run:
 
 ```bash
 python3 scripts/publish_articles.py publish --all --dry-run
-```
-
-GitHub Secrets の同期:
-
-```bash
-python3 infra/github/sync_secrets.py
 ```
 
 ## Notes

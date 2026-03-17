@@ -34,17 +34,19 @@
    gh auth login
    ```
 
-3. `infra/github/repository.env` の値を自分のリポジトリ情報に合わせて書き換える
-   - `GITHUB_OWNER` (例: あなたのGitHubユーザー名またはOrganization名)
-   - `GITHUB_REPOSITORY`
-   - `GITHUB_DEFAULT_BRANCH`
-
-4. `infra/github/secrets.example.env` を `infra/github/secrets.env` にコピーして値を入れる
-
-5. ターミナルでリポジトリのルート (repository root) に移動し、以下のコマンドを実行して GitHub repository secrets に登録する
+3. `infra/github/terraform.tfvars.example` をコピーして `terraform.tfvars` を作成し、Qiitaのアクセストークンを設定する。
 
    ```bash
-   python3 infra/github/sync_secrets.py
+   cd infra/github
+   cp terraform.tfvars.example terraform.tfvars
    ```
 
-雛形は [secrets.example.env](secrets.example.env) と [repository.env](repository.env) を参照してください。同期スクリプトは [sync_secrets.py](sync_secrets.py) です。
+4. Terraform を使って GitHub Secrets を登録する
+
+   ```bash
+   terraform init
+   terraform plan
+   terraform apply
+   ```
+
+雛形は [terraform.tfvars.example](terraform.tfvars.example) と [variables.tf](variables.tf) を参照してください。
