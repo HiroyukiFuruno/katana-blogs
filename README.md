@@ -92,14 +92,24 @@ published: true
 
 ### 執筆と投稿の流れ (Qiita / Zenn 共通)
 
-1. `blogs/draft/<article>/` ディレクトリを作り、その下で `qiita.md` や `zenn.md` を執筆します。
-2. 投稿したくなったら、対象ディレクトリごと `blogs/publish/<article>/` に移動またはコピーします。
+1. `blogs/draft/<article>/` ディレクトリを作り、その下で `qiita.md` や `zenn.md` を執筆します。（Qiita/Zenn どちらか片方だけでもOKです）
+2. 投稿したくなったら、対象の `<article>` ディレクトリごと `blogs/publish/` の下へ移動またはコピーします。
 3. `master` に push します。
 4. GitHub Actions (CI) が `blogs/publish/` 配下の変更を検知して処理を開始します。
-   - **Qiita:** Qiita API で記事を投稿・更新し、発行された `item_id` を元のマークダウンに書き込みます。
-   - **Zenn:** `articles/<article>.md` へファイルを自動コピーします。
-5. workflow が自動で更新されたフロントマターや `articles/` のファイルを repository へ commit / push します。
-6. (Zennのみ) 自動コミットされた `articles/` の差分を Zenn 側の GitHub 連携が検知し、Zenn サイト側へ即座に同期されます。
+   - **Qiita:** Qiita API で記事を投稿・更新し、発行された `item_id` を元の `qiita.md` に書き戻します。
+   - **Zenn:** `blogs/publish/<article>/zenn.md` の内容を、`articles/<article>.md` として自動コピーします。
+5. workflow が自動で更新されたフロントマター（`item_id`等）や構築された `articles/` ディレクトリ内のファイルを、リポジトリへ自動で commit & push します。
+   - コミットメッセージ: `chore: sync article publish ids and zenn articles [skip ci]`
+6. (Zennのみ) CI が自動コミットした `articles/` の更新を Zenn 側の GitHub アプリ連携が検知し、Zenn サイト側へ自動同期されます。
+
+### リポジトリ内での「公開済み記事」の管理
+
+一度 `blogs/publish/` に移動して公開された記事は、**以降もずっと `blogs/publish/<article>/` フォルダ内で管理** し続けます。
+
+- **記事を修正・更新したいとき**:
+  そのまま `blogs/publish/<article>/` にある `qiita.md` または `zenn.md` を直接編集して、再度 `master` に push してください。CI がファイルの変更を検知して、再度 Qiita の API 更新や `articles/` への上書き展開を自動で実行して公開内容がアップデートされます。
+- **自動生成される `articles/` ディレクトリについて**:
+  Zenn の公開同期用に CI が自動生成して使用するディレクトリです。基本的に手動で編集する必要はありません（`blogs/publish/` 側の `zenn.md` の内容が正となります）。
 
 ## Local Commands
 
@@ -130,8 +140,7 @@ python3 scripts/publish_articles.py publish --all --dry-run
 
 ## Notes
 
-- `blogs/draft/` 配下は workflow の投稿対象外です
-- Qiita は `item_id` が空なら新規作成、値があれば更新します
-- Zenn は `zenn-cli` による GitHub 連携を行なっているため、`articles/` 下の変更がそのまま同期対象となります
-- Zenn は公式の連携を用いているため、当リポジトリの `scripts/` には依存しません
-- Qiita だけ、Zenn だけの運用にも対応します
+- `blogs/draft/` 配下は workflow の投稿対象外です。ここに置いたまま master に push しても投稿されません。
+- Qiita はフロントマターの `item_id` が空なら新規作成、値があれば更新処理として挙動します。
+- Zenn への連携は、手書きの `zenn.md` を CI が `articles/` 構成に変換して出力することで GitHub 連携を仲介させています。
+- 完全な Zenn 専用リポジトリとして使いたい場合や、Qiita 単体で利用したい（いずれかのファイルを置かない）運用にも対応しています。
