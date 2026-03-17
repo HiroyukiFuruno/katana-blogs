@@ -2,17 +2,18 @@
 
 `katana-blogs` は、Katana シリーズの思想を発信するための汎用記事投稿リポジトリです。Katana は、現実世界のあらゆる不便を切り開いていくためのプロジェクト群であり、このリポジトリではその実装や考え方を Qiita と Zenn に同時配信します。
 
-ローカルで Markdown を編集し、`master` に push すると GitHub Actions が変更された記事だけを検知して投稿します。Qiita は公式 API、Zenn は非公式 API を使い、初回投稿で発行された `item_id` や `slug` は各 Markdown の frontmatter に自動同期されます。
+ローカルで Markdown を編集し、`master` に push すると GitHub Actions が変更された記事だけを検知して投稿します。Qiita は公式 API を使い自動反映し、Zenn は `zenn-cli` による GitHub 連携を活用します。初回投稿で発行された Qiita の `item_id` は各 Markdown の frontmatter に自動同期されます。
 
 ## Directory Layout
 
 ```text
 .
 ├── .github/workflows/publish.yml
+├── articles/
+│   └── <article-slug>.md
 ├── blogs/
 │   └── <article-slug>/
-│       ├── qiita.md
-│       └── zenn.md
+│       └── qiita.md
 ├── infra/github/
 │   ├── README.md
 │   ├── repository.env
@@ -24,7 +25,7 @@
 
 ## Article Format
 
-各記事ディレクトリには `qiita.md` と `zenn.md` だけを置きます。メタデータは frontmatter で持ちます。
+各記事は Qiita 用が `blogs/<article>/qiita.md` に、Zenn 用が `articles/<article>.md` に配置します。メタデータは frontmatter で持ちます。
 
 ### `blogs/<article>/qiita.md`
 
@@ -43,20 +44,15 @@ item_id:
 # 本文
 ```
 
-### `blogs/<article>/zenn.md`
+### `articles/<article>.md`
 
 ```md
 ---
-title: 記事タイトル
+title: "記事タイトル"
 emoji: "⚔️"
-type: tech
-topics:
-  - python
-  - github-actions
+type: "tech"
+topics: ["python", "github-actions"]
 published: true
-slug:
-scheduled_publish_at:
-publication_id:
 ---
 
 # 本文
@@ -100,5 +96,4 @@ python3 infra/github/sync_secrets.py
 ## Notes
 
 - Qiita は `item_id` が空なら新規作成、値があれば更新します
-- Zenn は `slug` が空なら新規作成、値があれば更新します
-- Zenn の非公式 API は将来の仕様変更で壊れる可能性があります
+- Zenn は `zenn-cli` による GitHub 連携を行なっているため、`articles/` 下の変更がそのまま同期対象となります

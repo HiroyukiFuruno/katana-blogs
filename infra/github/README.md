@@ -9,16 +9,12 @@
 - Workflow: `.github/workflows/publish.yml`
 - GitHub Secrets:
   - `QIITA_ACCESS_TOKEN`
-  - `ZENN_COOKIE`
 
 ## Secrets の意味
 
 - `QIITA_ACCESS_TOKEN`
   - Qiita API v2 の Bearer token
   - `write_qiita` scope が必要
-- `ZENN_COOKIE`
-  - Zenn にログインしたブラウザセッションの Cookie 文字列
-  - 非公式 API を使うため、Cookie の仕様変更で無効になる可能性があります
 
 ## 推奨セットアップ
 

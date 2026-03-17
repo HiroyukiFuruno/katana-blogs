@@ -6,7 +6,7 @@ on:
       - master
     paths:
       - "blogs/**/qiita.md"
-      - "blogs/**/zenn.md"
+      - "articles/**.md"
   workflow_dispatch:
 
 permissions:
@@ -40,7 +40,6 @@ jobs:
       - name: Publish Changed Articles
         env:
           QIITA_ACCESS_TOKEN: ${{ secrets.QIITA_ACCESS_TOKEN }}
-          ZENN_COOKIE: ${{ secrets.ZENN_COOKIE }}
         run: |
           python scripts/publish_articles.py publish \
             --repo-root "$GITHUB_WORKSPACE" \
