@@ -2,5 +2,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.pyc
-infra/github/secrets.env
 node_modules/
+
+# Terraform
+infra/github/.terraform/
+infra/github/.terraform.lock.hcl
+infra/github/terraform.tfvars
+infra/github/terraform.tfstate*
