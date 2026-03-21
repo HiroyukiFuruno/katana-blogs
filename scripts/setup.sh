@@ -136,7 +136,13 @@ phase1_check_tools() {
   echo ""
   echo -e "${BOLD}選択してください:${RESET}"
 
-  select_option "Agree" "No thank you"
+  # 全てのツールが既にインストール済みかつ --yes 指定がある場合はスキップ
+  if [[ "$AUTO_YES" == "true" ]]; then
+    ok "すべてのツールが既にインストール済みのため、確認をスキップします。"
+    SELECTED=0
+  else
+    select_option "Agree" "No thank you"
+  fi
 
   if [[ $SELECTED -eq 1 ]]; then
     info "セットアップを中断します。"
@@ -201,6 +207,11 @@ phase2_configure_token() {
     warn "terraform.tfvars は既に存在します。"
     echo ""
     echo -e "上書きしますか?"
+
+    if [[ "$AUTO_YES" == "true" ]]; then
+      info "terraform.tfvars が既に存在するため、上書きをスキップします。(--yes)"
+      return 0
+    fi
 
     select_option "上書きする" "スキップ"
 
@@ -293,6 +304,21 @@ phase3_apply_terraform() {
 # ------------------------------------------------------------
 
 main() {
+  AUTO_YES=false
+
+  # 引数処理
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -y|--yes)
+        AUTO_YES=true
+        shift
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
   echo ""
   echo -e "${BOLD}╔══════════════════════════════════════╗${RESET}"
   echo -e "${BOLD}║   katana-blogs 初期セットアップ      ║${RESET}"
