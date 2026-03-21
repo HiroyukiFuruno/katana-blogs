@@ -9,3 +9,6 @@ infra/github/.terraform/
 infra/github/.terraform.lock.hcl
 infra/github/terraform.tfvars
 infra/github/terraform.tfstate*
+
+# mcp
+.serena
