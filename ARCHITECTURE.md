@@ -1,8 +1,8 @@
-# Architecture
+# アーキテクチャ
 
-`katana-blogs` のシステム構成と処理フローを記載する。
+`${YOUR_REPOSITORY_NAME}` のシステム構成と処理フローを記載する。
 
-## Overview
+## 概要
 
 ローカルで Markdown を執筆し、GitHub に push すると Qiita / Zenn へ自動投稿される記事管理基盤。
 
@@ -16,7 +16,7 @@ graph LR
     U[Upstream] -.->|sync_upstream.sh| A
 ```
 
-## Directory Layout
+## ディレクトリ構成
 
 ```text
 .
@@ -43,7 +43,7 @@ graph LR
 └── package.json
 ```
 
-## Article Format
+## 記事フォーマット
 
 各記事は frontmatter でメタデータを持つ。
 
