@@ -26,16 +26,19 @@ ok()    { echo -e "${GREEN}✔${RESET}  $*"; }
 warn()  { echo -e "${YELLOW}⚠${RESET}  $*"; }
 error() { echo -e "${RED}✖${RESET}  $*" >&2; }
 
-# ↑↓ キー選択UI
+# ↑↓/jk キー選択UI
 select_option() {
   local options=("$@")
   local selected=0
   local count=${#options[@]}
 
+  # カーソル非表示
   tput civis 2>/dev/null || true
+  # 終了時に必ずカーソルを復元
   trap 'tput cnorm 2>/dev/null || true' RETURN
 
   while true; do
+    # 選択肢を描画
     for i in "${!options[@]}"; do
       if [[ $i -eq $selected ]]; then
         echo -e "  ${GREEN}▶ ${BOLD}${options[$i]}${RESET}"
@@ -44,25 +47,36 @@ select_option() {
       fi
     done
 
-    echo -e "\n${DIM}(↑↓で選択、Enterで確定)${RESET}"
+    echo -e "\n${DIM}(↑↓/jkで選択、Enterで確定)${RESET}"
 
+    # キー入力を1文字読み取り
     local key
     IFS= read -rsn1 key
 
     if [[ "$key" == $'\x1b' ]]; then
-      read -rsn1 key
-      if [[ "$key" == "[" ]]; then
-        read -rsn1 key
-        case "$key" in
-          A) [[ $selected -gt 0 ]] && ((selected--)) ;;
-          B) [[ $selected -lt $((count - 1)) ]] && ((selected++)) ;;
-        esac
+      # エスケープシーケンスの判定 (矢印キー等)
+      # 次の2文字を短いタイムアウト付きで読み取る
+      read -rsn2 -t 0.01 key
+      if [[ "$key" == "[A" || "$key" == "OA" ]]; then
+        # 上キー
+        [[ $selected -gt 0 ]] && ((selected--))
+      elif [[ "$key" == "[B" || "$key" == "OB" ]]; then
+        # 下キー
+        [[ $selected -lt $((count - 1)) ]] && ((selected++))
       fi
+    elif [[ "$key" == "k" ]]; then
+      # vim-style up
+      [[ $selected -gt 0 ]] && ((selected--))
+    elif [[ "$key" == "j" ]]; then
+      # vim-style down
+      [[ $selected -lt $((count - 1)) ]] && ((selected++))
     elif [[ "$key" == "" ]]; then
+      # Enter キー
       SELECTED=$selected
       return 0
     fi
 
+    # 描画をクリアしてループ（選択肢行数 + \n + ヒント行）
     local lines_to_clear=$((count + 2))
     for ((i = 0; i < lines_to_clear; i++)); do
       tput cuu1 2>/dev/null || echo -ne '\033[1A'
