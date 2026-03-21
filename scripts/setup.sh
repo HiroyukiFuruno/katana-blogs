@@ -63,8 +63,9 @@ select_option() {
 
     if [[ "$key" == $'\x1b' ]]; then
       # エスケープシーケンスの判定 (矢印キー等)
-      # 次の2文字を短いタイムアウト付きで読み取る
-      read -rsn2 -t 0.01 key
+      # macOS の bash (3.2) では小数点以下の timeout に対応していないため、整数または || true が必要
+      # set -e 環境でクラッシュしないよう || true を付与
+      read -rsn2 -t 1 key 2>/dev/null || true
       if [[ "$key" == "[A" || "$key" == "OA" ]]; then
         # 上キー
         [[ $selected -gt 0 ]] && ((selected--))
@@ -326,27 +327,36 @@ phase3_apply_terraform() {
 
   ok "GitHub CLI: 認証済"
 
-  # リポジトリアクセス確認
-  info "リポジトリ katana-blogs へのアクセスを確認中..."
+  # リポURLからオーナを取得してgh auth tokenを参照
+  local origin_url
+  origin_url=$(git remote get-url origin 2>/dev/null || echo "")
+  local gh_token=""
+  if [[ "$origin_url" =~ https://github\.com/([^/]+)/ ]]; then
+    local owner="${BASH_REMATCH[1]}"
+    gh_token=$(gh auth token --user "$owner" 2>/dev/null || echo "")
+  fi
 
-  if ! gh repo view katana-blogs &>/dev/null; then
+  # リポジトリアクセス確認
+  info "リモートリポジトリへのアクセスを確認中..."
+
+  if ! GITHUB_TOKEN="$gh_token" gh repo view &>/dev/null; then
     echo ""
-    error "リポジトリ katana-blogs にアクセスできません。"
+    error "リモートリポジトリにアクセスできません。"
     echo -e "  gh auth login で正しいアカウントにログインしているか確認してください。"
     exit 1
   fi
 
-  ok "リポジトリ katana-blogs: アクセス可能"
+  ok "リモートリポジトリ: アクセス可能"
   echo ""
 
   # terraform init
   info "terraform init を実行中..."
-  (cd "${INFRA_DIR}" && terraform init)
+  (cd "${INFRA_DIR}" && GITHUB_TOKEN="$gh_token" terraform init)
   echo ""
 
   # terraform apply
   info "terraform apply を実行します..."
-  (cd "${INFRA_DIR}" && terraform apply)
+  (cd "${INFRA_DIR}" && GITHUB_TOKEN="$gh_token" terraform apply)
 
   echo ""
   ok "Phase 3 完了: GitHub Secrets の登録が完了しました"
@@ -357,11 +367,12 @@ phase3_apply_terraform() {
 # ------------------------------------------------------------
 
 main() {
+  local AUTO_YES="false"
   # 引数処理
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -y|--yes)
-        AUTO_YES=true
+        AUTO_YES="true"
         shift
         ;;
       *)

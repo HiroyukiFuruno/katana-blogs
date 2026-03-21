@@ -55,8 +55,8 @@ select_option() {
 
     if [[ "$key" == $'\x1b' ]]; then
       # エスケープシーケンスの判定 (矢印キー等)
-      # 次の2文字を短いタイムアウト付きで読み取る
-      read -rsn2 -t 0.01 key
+      # macOS の bash (3.2) では小数点以下の timeout に対応していないため整数を使用し || true を付与
+      read -rsn2 -t 1 key 2>/dev/null || true
       if [[ "$key" == "[A" || "$key" == "OA" ]]; then
         # 上キー
         [[ $selected -gt 0 ]] && ((selected--))
@@ -89,6 +89,26 @@ select_option() {
 # 同期処理
 # ------------------------------------------------------------
 
+# リモートURLからオーナーを判定し、gh auth で適切なトークンを取得して git に注入する
+git_with_auth() {
+  local remote=$1
+  shift
+  local url
+  url=$(git remote get-url "$remote" 2>/dev/null || echo "")
+  local args=()
+  if [[ "$url" =~ https://github\.com/([^/]+)/ ]]; then
+    local owner="${BASH_REMATCH[1]}"
+    local token
+    token=$(gh auth token --user "$owner" 2>/dev/null || echo "")
+    if [[ -n "$token" ]]; then
+      local auth_b64
+      auth_b64=$(echo -n "x-access-token:$token" | base64)
+      args+=("-c" "http.https://github.com/.extraheader=Authorization: basic $auth_b64")
+    fi
+  fi
+  git "${args[@]}" "$@"
+}
+
 sync_upstream() {
   echo ""
   echo -e "${BOLD}🔄 Upstream からの変更を同期 (一括)${RESET}"
@@ -101,7 +121,7 @@ sync_upstream() {
   fi
 
   info "upstream から最新情報を取得中..."
-  git fetch upstream
+  git_with_auth upstream fetch upstream
 
   local current_branch
   current_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -120,7 +140,7 @@ sync_upstream() {
 
       if [[ $SELECTED -eq 0 ]]; then
         info "プッシュを実行中..."
-        git push origin "$current_branch"
+        git_with_auth origin push origin "$current_branch"
         ok "プッシュが完了しました。"
       else
         info "プッシュをスキップしました。"
