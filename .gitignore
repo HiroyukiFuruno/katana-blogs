@@ -11,4 +11,4 @@ infra/github/terraform.tfvars
 infra/github/terraform.tfstate*
 
 # mcp
-.serena
+.serena/
