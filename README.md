@@ -16,6 +16,21 @@
 
 ## 導入手順
 
+### 方法1: GitHub CLI (gh) を使う場合 (推奨)
+
+GitHub CLI がインストールされている場合は、以下のコマンドで Fork から Clone まで一気に完了できます。
+
+```bash
+# リポジトリ名を決める (例: my-blog)
+export YOUR_REPOSITORY_NAME=xxxxx
+
+# 本家を Fork してローカルにクローン
+gh repo fork HiroyukiFuruno/katana-blogs --clone --remote --fork-name ${YOUR_REPOSITORY_NAME}
+cd ${YOUR_REPOSITORY_NAME}
+```
+
+### 方法2: Web 画面から操作する場合
+
 1. **Fork**: GitHub上で [HiroyukiFuruno/katana-blogs](https://github.com/HiroyukiFuruno/katana-blogs) を自分のアカウントに Fork します。
 2. **Clone**: Fork した自分のリポジトリをローカルにクローンします。
 
