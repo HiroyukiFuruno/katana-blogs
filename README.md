@@ -57,6 +57,7 @@ python3 scripts/publish_articles.py publish --all --dry-run
 
 ## Notes
 
+- **CI が自動で push する**: workflow は `item_id` の書き戻しや `articles/` の同期コミットを `master` に push する。ローカルとの差分が生まれるため、**作業開始前に `git pull` を習慣化すること**
 - `blogs/draft/` 配下は workflow の投稿対象外。ここに置いたまま master に push しても投稿されない
 - Qiita はフロントマターの `item_id` が空なら新規作成、値があれば更新処理
 - Zenn への連携は、CI が `blogs/publish/<article>/zenn.md` を `articles/<article>.md` としてコピーし、Zenn の GitHub 連携が検知する仕組み
