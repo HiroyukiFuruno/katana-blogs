@@ -4,6 +4,7 @@ set -euo pipefail
 # ============================================================
 # katana-blogs 初期セットアップスクリプト
 #
+# Phase 0: Git リモート設定 (origin, upstream)
 # Phase 1: ツール確認 & インストール (Homebrew, tfenv, gh, Terraform)
 # Phase 2: Qiita トークン設定 → terraform.tfvars 生成
 # Phase 3: Terraform 適用 (GitHub Secrets 登録)
@@ -92,6 +93,60 @@ select_option() {
       tput el  2>/dev/null || echo -ne '\033[2K'
     done
   done
+}
+
+# ------------------------------------------------------------
+# Phase 0: Git リモート設定
+# ------------------------------------------------------------
+
+phase0_setup_remotes() {
+  echo ""
+  echo -e "${BOLD}🌐 Git リモートの設定 (origin / upstream)${RESET}"
+  echo ""
+
+  local current_origin_url
+  current_origin_url=$(git remote get-url origin 2>/dev/null || echo "")
+
+  # upstream の確認
+  if ! git remote | grep -q "^upstream$"; then
+    info "upstream リモートが見つかりません。本家リポジトリを登録します..."
+    git remote add upstream https://github.com/HiroyukiFuruno/katana-blogs.git
+    ok "upstream を登録しました: https://github.com/HiroyukiFuruno/katana-blogs.git"
+  else
+    ok "upstream: 既に設定済 ($(git remote get-url upstream))"
+  fi
+
+  # origin が本家を指している場合の処理
+  if [[ "$current_origin_url" == *"HiroyukiFuruno/katana-blogs"* ]]; then
+    warn "現在の origin が本家リポジトリを指しています。"
+    echo -e "自分のフォーク用リポジトリを origin として設定し、本家を upstream とすることを推奨します。"
+    echo ""
+    echo -e "フォーク済みの自分のリポジトリ URL (https://github.com/YOUR_NAME/katana-blogs.git) を入力してください:"
+    echo -e "${DIM}(空のまま Enter で現在の設定を維持します)${RESET}"
+    echo ""
+
+    local fork_url
+    echo -ne "${CYAN}?${RESET}  Fork URL: "
+    read -r fork_url
+
+    if [[ -n "$fork_url" ]]; then
+      # 現在の origin を upstream に付け替え（まだなければ）
+      if ! git remote | grep -q "^upstream$"; then
+        git remote rename origin upstream
+        ok "既存の origin を upstream にリネームしました。"
+      else
+        # 既に upstream がある場合は origin を削除して再作成
+        git remote remove origin
+        ok "既存の origin を削除しました。"
+      fi
+      git remote add origin "$fork_url"
+      ok "新しい origin を登録しました: $fork_url"
+    else
+      info "設定を維持します。"
+    fi
+  else
+    ok "origin: 自分のフォークが設定されています ($(git remote get-url origin))"
+  fi
 }
 
 # ------------------------------------------------------------
@@ -304,8 +359,6 @@ phase3_apply_terraform() {
 # ------------------------------------------------------------
 
 main() {
-  AUTO_YES=false
-
   # 引数処理
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -324,6 +377,7 @@ main() {
   echo -e "${BOLD}║   katana-blogs 初期セットアップ      ║${RESET}"
   echo -e "${BOLD}╚══════════════════════════════════════╝${RESET}"
 
+  phase0_setup_remotes
   phase1_check_tools
   phase2_configure_token
   phase3_apply_terraform
