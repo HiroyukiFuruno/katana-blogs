@@ -356,9 +356,25 @@ phase3_apply_terraform() {
   (cd "${INFRA_DIR}" && GITHUB_TOKEN="$gh_token" terraform init)
   echo ""
 
+  # terraform apply の確認
+  echo -e "GitHub Secrets に Qiita アクセストークンを登録するため、"
+  echo -e "Terraform を実行してリポジトリの設定を更新します。"
+  echo ""
+
+  if [[ "$AUTO_YES" == "true" ]]; then
+    SELECTED=0
+  else
+    select_option "Agree (実行)" "Cancel (中止)"
+  fi
+
+  if [[ $SELECTED -eq 1 ]]; then
+    warn "Terraform の実行をキャンセルしました。"
+    return 0
+  fi
+
   # terraform apply
   info "terraform apply を実行します..."
-  (cd "${INFRA_DIR}" && GITHUB_TOKEN="$gh_token" terraform apply)
+  (cd "${INFRA_DIR}" && GITHUB_TOKEN="$gh_token" terraform apply -auto-approve)
 
   echo ""
   ok "Phase 3 完了: GitHub Secrets の登録が完了しました"
