@@ -9,7 +9,7 @@
 セットアップの前に、以下のサービス登録・連携を済ませてください。
 
 | サービス | 必要な準備 | 参考リンク |
-|----------|-----------|------------|
+| --- | --- | --- |
 | Qiita | アカウント登録済 | [Qiita](https://qiita.com/) |
 | Qiita API | アクセストークン発行済（`write_qiita` scope） | [トークン発行画面](https://qiita.com/settings/tokens/new) |
 | Zenn | GitHub 連携設定済（本リポジトリの `master` ブランチ） | [Zenn GitHub連携ガイド](https://zenn.dev/zenn/articles/connect-to-github) |
@@ -24,9 +24,22 @@ bash scripts/setup.sh
 
 スクリプトが行うこと:
 
-1. **ツールインストール**: Homebrew, tfenv, Terraform, GitHub CLI の確認・インストール
-2. **トークン設定**: Qiita Access Token を入力し `infra/github/terraform.tfvars` を生成
-3. **Secrets 登録**: `terraform apply` で GitHub Actions Secrets に反映
+1. **リモート設定**: `origin` (自分のフォーク) と `upstream` (本家) を構成
+2. **ツールインストール**: Homebrew, tfenv, Terraform, GitHub CLI の確認・インストール
+3. **トークン設定**: Qiita Access Token を入力し `infra/github/terraform.tfvars` を生成
+4. **Secrets 登録**: `terraform apply` で GitHub Actions Secrets に反映
+
+## Maintenance
+
+### Upstream との同期
+
+本家リポジトリ (`HiroyukiFuruno/katana-blogs`) の更新を自分のフォークに取り込むには、以下のコマンドを実行します。
+
+```bash
+bash scripts/sync_upstream.sh
+```
+
+このコマンドは `upstream` からフェッチし、現在のブランチに `upstream/master` をマージします。
 
 ## Local Commands
 

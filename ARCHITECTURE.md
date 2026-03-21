@@ -12,6 +12,8 @@ graph LR
     B -->|GitHub Actions| C[Qiita API]
     B -->|GitHub Actions| D[articles/ 同期]
     D -->|Zenn GitHub連携| E[Zenn]
+    
+    U[Upstream] -.->|sync_upstream.sh| A
 ```
 
 ## Directory Layout
@@ -113,7 +115,7 @@ flowchart LR
 ## 記事ライフサイクル
 
 | 状態 | 配置先 | CI 動作 |
-|------|--------|---------|
+| --- | --- | --- |
 | 執筆中（下書き） | `blogs/draft/<article>/` | 投稿対象外 |
 | 公開・更新 | `blogs/publish/<article>/` | Qiita API 投稿 + articles/ 同期 |
 | 修正 | `blogs/publish/<article>/` を直接編集 | 再投稿・再同期 |
