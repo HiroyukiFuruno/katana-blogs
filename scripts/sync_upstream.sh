@@ -31,6 +31,7 @@ select_option() {
   local options=("$@")
   local selected=0
   local count=${#options[@]}
+  local i
 
   # カーソル非表示
   tput civis 2>/dev/null || true
@@ -49,32 +50,34 @@ select_option() {
 
     echo -e "\n${DIM}(↑↓/jkで選択、Enterで確定)${RESET}"
 
-    # キー入力を1文字読み取り
+    # キー入力を読み取り
     local key
     IFS= read -rsn1 key
 
+    # 矢印キー等のエスケープシーケンス処理
     if [[ "$key" == $'\x1b' ]]; then
-      # エスケープシーケンスの判定 (矢印キー等)
-      # macOS の bash (3.2) では小数点以下の timeout に対応していないため整数を使用し || true を付与
-      read -rsn2 -t 1 key 2>/dev/null || true
-      if [[ "$key" == "[A" || "$key" == "OA" ]]; then
-        # 上キー
-        [[ $selected -gt 0 ]] && ((selected--))
-      elif [[ "$key" == "[B" || "$key" == "OB" ]]; then
-        # 下キー
-        [[ $selected -lt $((count - 1)) ]] && ((selected++))
-      fi
-    elif [[ "$key" == "k" ]]; then
-      # vim-style up
-      [[ $selected -gt 0 ]] && ((selected--))
-    elif [[ "$key" == "j" ]]; then
-      # vim-style down
-      [[ $selected -lt $((count - 1)) ]] && ((selected++))
-    elif [[ "$key" == "" ]]; then
-      # Enter キー
-      SELECTED=$selected
-      return 0
+      local next_chars
+      # macOS の bash (3.2) では小数点以下の timeout に対応していないため整数を使用
+      read -rsn2 -t 1 next_chars 2>/dev/null || true
+      key+="$next_chars"
     fi
+
+    case "$key" in
+      $'\x1b[A'|$'\x1bOA'|k) # Up
+        if [[ $selected -gt 0 ]]; then
+          selected=$((selected - 1))
+        fi
+        ;;
+      $'\x1b[B'|$'\x1bOB'|j) # Down
+        if [[ $selected -lt $((count - 1)) ]]; then
+          selected=$((selected + 1))
+        fi
+        ;;
+      "") # Enter
+        SELECTED=$selected
+        return 0
+        ;;
+    esac
 
     # 描画をクリアしてループ（選択肢行数 + \n + ヒント行）
     local lines_to_clear=$((count + 2))
